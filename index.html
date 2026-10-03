@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word Shuffle</title>
+<style>
+  :root {
+    --paper: #E8EDF0;
+    --card: #F8FAFB;
+    --ink: #17212B;
+    --muted: #586875;
+    --tile: #1F4FD8;
+    --tile-edge: #15399F;
+    --slot: #C9D3DA;
+    --good: #17825A;
+    --good-edge: #0F5E40;
+    --bad: #BE3535;
+    --line: #D3DCE2;
+    --size: min(3.5rem, calc((min(100vw, 40rem) - 4rem - (var(--n, 6) - 1) * 0.4rem) / var(--n, 6)));
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+  }
+  main {
+    width: 100%;
+    max-width: 40rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: clamp(1.25rem, 4vw, 2.25rem);
+  }
+  h1 {
+    margin: 0 0 0.25rem;
+    font-size: clamp(2rem, 7vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  p { line-height: 1.5; margin: 0.5rem 0; }
+  .muted { color: var(--muted); }
+  [hidden] { display: none !important; }
+
+  /* Buttons */
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    padding: 0.6rem 1rem;
+    font-weight: 600;
+  }
+  button:hover:not(:disabled) { border-color: #9FB0BC; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid #7FA2FF; outline-offset: 2px; }
+  .primary {
+    background: var(--tile);
+    border-color: var(--tile-edge);
+    color: #fff;
+  }
+  .primary:hover:not(:disabled) { background: #1A44BD; border-color: var(--tile-edge); }
+
+  /* Start screen */
+  .levels { display: grid; gap: 0.6rem; margin: 1.5rem 0 0; }
+  .level {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    padding: 0.9rem 1.1rem;
+  }
+  .level small { color: var(--muted); font-weight: 500; }
+
+  /* Game header */
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.9rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.95rem;
+  }
+  .bar strong { font-size: 1.15rem; }
+  .pips { display: inline-flex; gap: 0.3rem; vertical-align: middle; margin-left: 0.4rem; }
+  .pip { width: 0.7rem; height: 0.7rem; border-radius: 50%; background: var(--tile); }
+  .pip.off { background: var(--slot); }
+
+  /* Tiles */
+  .board { margin: 1.75rem 0 1rem; }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+    margin: 0 auto;
+  }
+  .row + .row { margin-top: 1.1rem; }
+  .tile, .slot, .gap {
+    width: var(--size);
+    height: calc(var(--size) * 1.1);
+    border-radius: 8px;
+  }
+  .tile {
+    padding: 0;
+    background: var(--tile);
+    border: 0;
+    border-bottom: 5px solid var(--tile-edge);
+    color: #fff;
+    font-size: calc(var(--size) * 0.55);
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 1;
+    transition: transform 0.08s ease;
+  }
+  .tile:hover:not(:disabled) { transform: translateY(-2px); }
+  .tile:active:not(:disabled) { transform: translateY(2px); border-bottom-width: 2px; }
+  .tile:disabled { opacity: 1; cursor: default; }
+  .slot {
+    background: transparent;
+    border: 2px dashed var(--slot);
+    display: grid;
+    place-items: center;
+    color: #A9B8C2;
+    font-size: calc(var(--size) * 0.5);
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .gap { background: #E1E8EC; border-radius: 8px; opacity: 0.6; }
+  .row.good .tile { background: var(--good); border-bottom-color: var(--good-edge); }
+  .row.reveal .tile { background: var(--muted); border-bottom-color: #3F4E5A; }
+  .row.shake { animation: shake 0.35s; }
+  @keyframes shake {
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(7px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(3px); }
+  }
+
+  .msg { min-height: 1.6rem; text-align: center; font-weight: 600; margin: 0.5rem 0 1rem; }
+  .msg.good { color: var(--good); }
+  .msg.bad { color: var(--bad); }
+
+  .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+  .actions .primary { min-width: 8.5rem; }
+
+  /* End screen */
+  .final { font-size: clamp(3rem, 14vw, 5rem); font-weight: 800; letter-spacing: -0.04em; margin: 1rem 0 0; line-height: 1; }
+  .final span { font-size: 0.4em; color: var(--muted); font-weight: 600; letter-spacing: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .row.shake { animation: none; }
+    .tile { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- Start -->
+  <section id="start">
+    <h1>Word Shuffle</h1>
+    <p class="muted">Five scrambled words. Put the letters back in order. You get three tries per word.</p>
+    <div class="levels" id="levels"></div>
+  </section>
+
+  <!-- Game -->
+  <section id="game" hidden>
+    <div class="bar">
+      <span>Word <strong id="roundNo">1</strong> of 5</span>
+      <span>Tries<span class="pips" id="pips" aria-label="Tries left"></span></span>
+      <span>Score <strong id="score">0</strong></span>
+    </div>
+
+    <div class="board" style="--n: 6" id="board">
+      <div class="row" id="answerRow" aria-label="Your answer"></div>
+      <div class="row" id="rack" aria-label="Available letters"></div>
+    </div>
+
+    <p class="msg" id="msg" role="status" aria-live="polite"></p>
+
+    <div class="actions">
+      <button id="clearBtn">Clear</button>
+      <button id="shuffleBtn">Reshuffle</button>
+      <button id="hintBtn">Hint (-3)</button>
+      <button id="skipBtn">Skip</button>
+      <button id="checkBtn" class="primary">Check</button>
+      <button id="nextBtn" class="primary" hidden>Next word</button>
+    </div>
+    <p class="muted" style="text-align:center; font-size:0.85rem; margin-top:1rem;">
+      Click letters or type them. Enter checks, Backspace undoes.
+    </p>
+  </section>
+
+  <!-- End -->
+  <section id="end" hidden>
+    <h1>Game over</h1>
+    <p class="final"><span id="finalScore">0</span><span> / 50</span></p>
+    <p id="verdict" class="muted"></p>
+    <div class="actions" style="justify-content:flex-start; margin-top:1.5rem;">
+      <button id="againBtn" class="primary">Play again</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+(() => {
+  const WORDS = {
+    easy:   ["apple","chair","river","plant","bread","cloud","tiger","smile","house","water"],
+    medium: ["balance","journal","account","payroll","invoice","network","monitor","holiday","freedom","kitchen"],
+    hard:   ["reconciliation","depreciation","liability","compliance","accountant","spreadsheet","efficiency","adventure","mountainous","photography"]
+  };
+  const LEVEL_NOTES = { easy: "5-letter words", medium: "7 to 8 letters", hard: "9 to 14 letters" };
+  const ROUNDS = 5, MAX_TRIES = 3;
+
+  const $ = id => document.getElementById(id);
+  const screens = { start: $("start"), game: $("game"), end: $("end") };
+  let s = null; // game state
+
+  function show(name) {
+    for (const k in screens) screens[k].hidden = k !== name;
+  }
+
+  function shuffled(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function scramble(word) {
+    let letters, joined;
+    do {
+      letters = shuffled(word.split(""));
+      joined = letters.join("");
+    } while (joined === word);
+    return letters.map((ch, id) => ({ id, ch }));
+  }
+
+  /* ---------- Start screen ---------- */
+  const levels = $("levels");
+  Object.keys(WORDS).forEach(name => {
+    const b = document.createElement("button");
+    b.className = "level";
+    b.innerHTML = `<span style="text-transform:capitalize">${name}</span><small>${LEVEL_NOTES[name]}</small>`;
+    b.addEventListener("click", () => startGame(name));
+    levels.appendChild(b);
+  });
+
+  function startGame(level) {
+    s = { level, words: shuffled(WORDS[level]).slice(0, ROUNDS), round: 0, score: 0 };
+    show("game");
+    setupRound();
+  }
+
+  /* ---------- Round ---------- */
+  function setupRound() {
+    const word = s.words[s.round];
+    Object.assign(s, {
+      word,
+      tiles: scramble(word),
+      answer: [],
+      tries: MAX_TRIES,
+      wrong: 0,
+      hintUsed: false,
+      locked: false,
+      state: ""
+    });
+    $("board").style.setProperty("--n", word.length);
+    $("nextBtn").hidden = true;
+    $("checkBtn").hidden = false;
+    setMsg("", "");
+    render();
+  }
+
+  function setMsg(text, kind) {
+    const m = $("msg");
+    m.textContent = text;
+    m.className = "msg " + kind;
+  }
+
+  function render() {
+    $("roundNo").textContent = s.round + 1;
+    $("score").textContent = s.score;
+
+    const pips = $("pips");
+    pips.innerHTML = "";
+    for (let i = 0; i < MAX_TRIES; i++) {
+      const p = document.createElement("span");
+      p.className = "pip" + (i < s.tries ? "" : " off");
+      pips.appendChild(p);
+    }
+
+    const ansRow = $("answerRow");
+    ansRow.className = "row" + (s.state ? " " + s.state : "");
+    ansRow.innerHTML = "";
+    for (let i = 0; i < s.word.length; i++) {
+      const id = s.answer[i];
+      if (id !== undefined) {
+        const t = tileButton(s.tiles[id]);
+        t.disabled = s.locked;
+        t.addEventListener("click", () => removeAt(i));
+        t.setAttribute("aria-label", `Remove ${s.tiles[id].ch}`);
+        ansRow.appendChild(t);
+      } else {
+        const slot = document.createElement("div");
+        slot.className = "slot";
+        if (i === 0 && s.hintUsed && !s.locked) slot.textContent = s.word[0];
+        ansRow.appendChild(slot);
+      }
+    }
+
+    const rack = $("rack");
+    rack.innerHTML = "";
+    s.tiles.forEach(tile => {
+      if (s.answer.includes(tile.id)) {
+        const g = document.createElement("div");
+        g.className = "gap";
+        rack.appendChild(g);
+      } else {
+        const t = tileButton(tile);
+        t.disabled = s.locked;
+        t.addEventListener("click", () => addTile(tile.id));
+        rack.appendChild(t);
+      }
+    });
+
+    $("checkBtn").disabled = s.locked || s.answer.length !== s.word.length;
+    $("clearBtn").disabled = s.locked || s.answer.length === 0;
+    $("shuffleBtn").disabled = s.locked;
+    $("hintBtn").disabled = s.locked || s.hintUsed;
+    $("skipBtn").disabled = s.locked;
+  }
+
+  function tileButton(tile) {
+    const b = document.createElement("button");
+    b.className = "tile";
+    b.textContent = tile.ch;
+    b.setAttribute("aria-label", tile.ch);
+    return b;
+  }
+
+  /* ---------- Actions ---------- */
+  function addTile(id) {
+    if (s.locked || s.answer.length >= s.word.length || s.answer.includes(id)) return;
+    s.answer.push(id);
+    render();
+  }
+  function removeAt(i) {
+    if (s.locked) return;
+    s.answer.splice(i, 1);
+    render();
+  }
+
+  function check() {
+    if (s.locked || s.answer.length !== s.word.length) return;
+    const guess = s.answer.map(id => s.tiles[id].ch).join("");
+    if (guess === s.word) {
+      const earned = Math.max(10 - (s.hintUsed ? 3 : 0) - s.wrong * 2, 1);
+      s.score += earned;
+      s.locked = true;
+      s.state = "good";
+      setMsg(`Correct! +${earned} points`, "good");
+      finishRound();
+    } else {
+      s.wrong++;
+      s.tries--;
+      if (s.tries === 0) {
+        revealWord(`Out of tries. The word was ${s.word.toUpperCase()}.`);
+      } else {
+        s.answer = [];
+        s.state = "shake";
+        setMsg(`Not quite. ${s.tries} ${s.tries === 1 ? "try" : "tries"} left.`, "bad");
+        render();
+        setTimeout(() => { if (s) { s.state = ""; const r = $("answerRow"); r.classList.remove("shake"); } }, 400);
+      }
+    }
+  }
+
+  function revealWord(text) {
+    s.locked = true;
+    s.state = "reveal";
+    s.answer = [];
+    s.word.split("").forEach(ch => {
+      const tile = s.tiles.find(t => t.ch === ch && !s.answer.includes(t.id));
+      s.answer.push(tile.id);
+    });
+    setMsg(text, "bad");
+    finishRound();
+  }
+
+  function finishRound() {
+    $("checkBtn").hidden = true;
+    const next = $("nextBtn");
+    next.hidden = false;
+    next.textContent = s.round === ROUNDS - 1 ? "See results" : "Next word";
+    render();
+    next.focus();
+  }
+
+  function next() {
+    s.round++;
+    if (s.round >= ROUNDS) return endGame();
+    setupRound();
+  }
+
+  function endGame() {
+    $("finalScore").textContent = s.score;
+    const pct = s.score / (ROUNDS * 10);
+    $("verdict").textContent =
+      pct === 1 ? "Perfect run. No hints, no misses." :
+      pct >= 0.7 ? "Strong play. Try the next level up." :
+      pct >= 0.4 ? "Solid. A few words got away from you." :
+      "Tough round. Shuffle again and have another go.";
+    show("end");
+  }
+
+  /* ---------- Wiring ---------- */
+  $("checkBtn").addEventListener("click", check);
+  $("nextBtn").addEventListener("click", next);
+  $("clearBtn").addEventListener("click", () => { s.answer = []; render(); });
+  $("shuffleBtn").addEventListener("click", () => {
+    s.tiles = shuffled(s.tiles);
+    // keep answer ids valid; ids are stable so just re-render
+    render();
+  });
+  $("hintBtn").addEventListener("click", () => {
+    if (s.hintUsed || s.locked) return;
+    s.hintUsed = true;
+    setMsg(`Hint: it starts with "${s.word[0].toUpperCase()}" and has ${s.word.length} letters.`, "");
+    render();
+  });
+  $("skipBtn").addEventListener("click", () => {
+    if (!s.locked) revealWord(`Skipped. The word was ${s.word.toUpperCase()}.`);
+  });
+  $("againBtn").addEventListener("click", () => { s = null; show("start"); });
+
+  document.addEventListener("keydown", e => {
+    if (!s || screens.game.hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+    const onButton = e.target && e.target.tagName === "BUTTON";
+    if (e.key === "Enter") {
+      if (onButton) return; // let the focused button handle it
+      if (s.locked) next(); else check();
+      return;
+    }
+    if (s.locked) return;
+    if (e.key === "Backspace") {
+      s.answer.pop();
+      render();
+      e.preventDefault();
+    } else if (/^[a-z]$/i.test(e.key)) {
+      const key = e.key.toLowerCase();
+      const tile = s.tiles.find(t => t.ch === key && !s.answer.includes(t.id));
+      if (tile) addTile(tile.id);
+    }
+  });
+})();
+</script>
+</body>
+</html>
